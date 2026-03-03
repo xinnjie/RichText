@@ -81,6 +81,9 @@ public enum MediaClickType {
 /// Media event handler type
 public typealias MediaClickHandler = (MediaClickType) -> Void
 
+/// Word tap event handler type
+public typealias WordClickHandler = (String) -> Void
+
 /// RichText error types
 public enum RichTextError: LocalizedError {
     case htmlLoadingFailed(String)
@@ -236,5 +239,4 @@ public enum LoadingTransition {
         }
     }
 }
-
 

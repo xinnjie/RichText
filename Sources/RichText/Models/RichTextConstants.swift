@@ -29,6 +29,7 @@ public struct RichTextConstants {
     // MARK: - JavaScript Handler Names (v3.0.0 - Async optimized)
     public static let heightNotificationHandler = "notifyCompletion"
     public static let mediaClickHandler = "mediaClick"
+    public static let wordClickHandler = "wordClick"
     
     // MARK: - HTML Element IDs (v3.0.0)
     public static let richTextContainerID = "NuPlay_RichText"
@@ -83,6 +84,60 @@ public struct RichTextConstants {
         p.footnote    { font: -apple-system-footnote; }
         p.caption1    { font: -apple-system-caption1; }
         p.caption2    { font: -apple-system-caption2; }
+        """
+    
+    // MARK: - Word Click Script (v3.0.0)
+    public static let wordClickScript = """
+        (function () {
+          function caretRangeAtPoint(x, y) {
+            if (document.caretRangeFromPoint) {
+              return document.caretRangeFromPoint(x, y);
+            }
+            if (document.caretPositionFromPoint) {
+              var position = document.caretPositionFromPoint(x, y);
+              if (!position) return null;
+              var range = document.createRange();
+              range.setStart(position.offsetNode, position.offset);
+              range.setEnd(position.offsetNode, position.offset);
+              return range;
+            }
+            return null;
+          }
+
+          function extractWordAtPoint(x, y) {
+            var range = caretRangeAtPoint(x, y);
+            if (!range) return null;
+
+            var node = range.startContainer;
+            if (!node || node.nodeType !== Node.TEXT_NODE) return null;
+
+            var text = node.textContent || "";
+            var offset = range.startOffset;
+            var wordPattern = /[A-Za-z'-]+/g;
+            var match;
+
+            while ((match = wordPattern.exec(text)) !== null) {
+              var start = match.index;
+              var end = start + match[0].length;
+              if (offset >= start && offset <= end) {
+                return match[0];
+              }
+            }
+            return null;
+          }
+
+          document.addEventListener("click", function (event) {
+            var target = event.target;
+            if (target && target.closest && target.closest("a")) return;
+
+            var word = extractWordAtPoint(event.clientX, event.clientY);
+            if (!word || word.length <= 1) return;
+
+            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.wordClick) {
+              window.webkit.messageHandlers.wordClick.postMessage(word);
+            }
+          });
+        })();
         """
     
     // MARK: - HTML Templates (v3.0.0 - Modern, accessible markup)

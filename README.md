@@ -297,6 +297,17 @@ RichText(html: String, configuration: Configuration, placeholder: AnyView?)
     }
 }
 
+// Word click events (v3.0.0+)
+let config = Configuration(
+    wordClickHandler: { word in
+        // Word is matched by [A-Za-z'-]+ and length > 1
+        // Tapping <a> links does not trigger this callback
+        print("Tapped word: \(word)")
+    }
+)
+
+RichText(html: html, configuration: config)
+
 // Error handling (v3.0.0+)
 .onError { error in
     switch error {

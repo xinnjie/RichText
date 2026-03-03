@@ -29,6 +29,7 @@ public struct Configuration {
     public var baseURL: URL?
     
     public var mediaClickHandler: MediaClickHandler?
+    public var wordClickHandler: WordClickHandler?
     
     public var errorHandler: ErrorHandler?
     
@@ -51,6 +52,7 @@ public struct Configuration {
     ///   - linkColor: Color set for links
     ///   - baseURL: Base URL for relative resources
     ///   - mediaClickHandler: Handler for image/video click events
+    ///   - wordClickHandler: Handler for tapped words in text content
     ///   - errorHandler: Handler for error events
     ///   - isColorsImportant: Color preference enforcement
     ///   - transition: Animation for transitions
@@ -75,6 +77,7 @@ public struct Configuration {
         ),
         baseURL: URL? = Bundle.main.bundleURL,
         mediaClickHandler: MediaClickHandler? = nil,
+        wordClickHandler: WordClickHandler? = nil,
         errorHandler: ErrorHandler? = nil,
         isColorsImportant: ColorPreference = .onlyLinks,
         transition: Animation? = .none
@@ -92,6 +95,7 @@ public struct Configuration {
         self.linkColor = linkColor
         self.baseURL = baseURL
         self.mediaClickHandler = mediaClickHandler
+        self.wordClickHandler = wordClickHandler
         self.errorHandler = errorHandler
         self.isColorsImportant = isColorsImportant
         self.transition = transition

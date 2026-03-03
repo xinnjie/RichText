@@ -43,6 +43,18 @@ extension WebView: UIViewRepresentable {
             context.coordinator,
             name: RichTextConstants.mediaClickHandler
         )
+        if conf.wordClickHandler != nil {
+            let wordClickScript = WKUserScript(
+                source: RichTextConstants.wordClickScript,
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+            configuration.userContentController.addUserScript(wordClickScript)
+            configuration.userContentController.add(
+                context.coordinator,
+                name: RichTextConstants.wordClickHandler
+            )
+        }
         let webview = WKWebView(frame: .zero, configuration: configuration)
         
         // Configure scrolling behavior
@@ -93,6 +105,18 @@ extension WebView: NSViewRepresentable {
             context.coordinator,
             name: RichTextConstants.mediaClickHandler
         )
+        if conf.wordClickHandler != nil {
+            let wordClickScript = WKUserScript(
+                source: RichTextConstants.wordClickScript,
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+            configuration.userContentController.addUserScript(wordClickScript)
+            configuration.userContentController.add(
+                context.coordinator,
+                name: RichTextConstants.wordClickHandler
+            )
+        }
         let webview = ScrollAdjustedWKWebView(frame: .zero, configuration: configuration)
         
         // Set delegate
@@ -156,6 +180,9 @@ extension WebView {
             case RichTextConstants.mediaClickHandler:
                 await handleMediaClick(message.body)
                 
+            case RichTextConstants.wordClickHandler:
+                await handleWordClick(message.body)
+                
             default:
                 webViewLogger.warning("Unknown script message: \(message.name)")
             }
@@ -200,6 +227,19 @@ extension WebView {
             default:
                 self.parent.conf.errorHandler?(.mediaHandlingFailed("Unknown media type: \(type)"))
             }
+        }
+        
+        @MainActor
+        private func handleWordClick(_ body: Any) async {
+            guard let word = body as? String else {
+                webViewLogger.warning("Invalid word tap payload")
+                return
+            }
+            
+            let trimmedWord = word.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmedWord.count > 1 else { return }
+            
+            self.parent.conf.wordClickHandler?(trimmedWord)
         }
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             guard navigationAction.navigationType == WKNavigationType.linkActivated,

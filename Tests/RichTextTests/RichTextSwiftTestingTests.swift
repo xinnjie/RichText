@@ -21,6 +21,7 @@ struct RichTextAllTests {
             #expect(config.imageRadius == RichTextConstants.defaultImageRadius)
             #expect(config.forceColorSchemeBackground == false)
             #expect(config.isColorsImportant == .onlyLinks)
+            #expect(config.wordClickHandler == nil)
         }
         
         @Test("Configuration with custom values")
@@ -34,6 +35,7 @@ struct RichTextAllTests {
                 lineHeight: customLineHeight,
                 forceColorSchemeBackground: true,
                 imageRadius: customImageRadius,
+                wordClickHandler: { _ in },
                 isColorsImportant: .all
             )
             
@@ -42,6 +44,7 @@ struct RichTextAllTests {
             #expect(config.imageRadius == customImageRadius)
             #expect(config.forceColorSchemeBackground == true)
             #expect(config.isColorsImportant == .all)
+            #expect(config.wordClickHandler != nil)
         }
         
         @Test("Configuration with dynamic type support")
@@ -197,6 +200,10 @@ struct RichTextAllTests {
             #expect(RichTextConstants.heightNotificationHandler == "notifyCompletion")
             #expect(RichTextConstants.richTextContainerID == "NuPlay_RichText")
             #expect(!RichTextConstants.systemFontName.isEmpty)
+            #expect(RichTextConstants.wordClickHandler == "wordClick")
+            #expect(RichTextConstants.wordClickScript.contains("[A-Za-z'-]+"))
+            #expect(RichTextConstants.wordClickScript.contains("word.length <= 1"))
+            #expect(RichTextConstants.wordClickScript.contains("closest(\"a\")"))
         }
     }
     
@@ -366,6 +373,20 @@ struct RichTextAllTests {
                 .loadingTransition(.custom(.easeInOut))
             
             #expect(customTransition.configuration.transition != nil)
+        }
+        
+        @Test("Word click handler configuration")
+        func wordClickHandlerConfiguration() {
+      var word: String?
+            let config = Configuration(
+                wordClickHandler: { word in
+          word = word
+                }
+            )
+            
+            #expect(config.wordClickHandler != nil)
+            config.wordClickHandler?("example")
+      #expect(word == "example")
         }
         
         @Test("Custom placeholder configuration")

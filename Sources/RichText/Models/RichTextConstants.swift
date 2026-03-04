@@ -128,7 +128,8 @@ public struct RichTextConstants {
 
           document.addEventListener("click", function (event) {
             var target = event.target;
-            if (target && target.closest && target.closest("a")) return;
+            var element = target && target.nodeType === Node.TEXT_NODE ? target.parentElement : target;
+            if (element && element.closest && element.closest("a")) return;
 
             var word = extractWordAtPoint(event.clientX, event.clientY);
             if (!word || word.length <= 1) return;

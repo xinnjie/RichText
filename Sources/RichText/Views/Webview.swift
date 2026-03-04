@@ -55,6 +55,9 @@ extension WebView: UIViewRepresentable {
                 name: RichTextConstants.wordClickHandler
             )
         }
+        for (scheme, handler) in conf.schemeHandlers {
+            configuration.setURLSchemeHandler(handler, forURLScheme: scheme)
+        }
         let webview = WKWebView(frame: .zero, configuration: configuration)
         
         // Configure scrolling behavior
@@ -116,6 +119,9 @@ extension WebView: NSViewRepresentable {
                 context.coordinator,
                 name: RichTextConstants.wordClickHandler
             )
+        }
+        for (scheme, handler) in conf.schemeHandlers {
+            configuration.setURLSchemeHandler(handler, forURLScheme: scheme)
         }
         let webview = ScrollAdjustedWKWebView(frame: .zero, configuration: configuration)
         

@@ -1,6 +1,12 @@
 import Testing
 import SwiftUI
+import WebKit
 @testable import RichText
+
+private final class TestSchemeHandler: NSObject, WKURLSchemeHandler {
+    func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {}
+    func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {}
+}
 
 // MARK: - Swift Testing Tests for RichText Library v3.0.0
 // Modern test suite using Swift Testing framework
@@ -21,7 +27,18 @@ struct RichTextAllTests {
             #expect(config.imageRadius == RichTextConstants.defaultImageRadius)
             #expect(config.forceColorSchemeBackground == false)
             #expect(config.isColorsImportant == .onlyLinks)
+            #expect(config.schemeHandlers.isEmpty)
             #expect(config.wordClickHandler == nil)
+        }
+
+        @Test("Configuration accepts custom scheme handlers")
+        func configurationWithSchemeHandlers() {
+            let handler = TestSchemeHandler()
+            let config = Configuration(
+                schemeHandlers: ["mdict-res": handler]
+            )
+
+            #expect(config.schemeHandlers["mdict-res"] != nil)
         }
         
         @Test("Configuration with custom values")

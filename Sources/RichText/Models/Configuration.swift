@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import WebKit
 
 public struct Configuration {
     
@@ -27,6 +28,7 @@ public struct Configuration {
     public var linkOpenType: LinkOpenType
     public var linkColor: ColorSet
     public var baseURL: URL?
+    public var schemeHandlers: [String: any WKURLSchemeHandler]
     
     public var mediaClickHandler: MediaClickHandler?
     public var wordClickHandler: WordClickHandler?
@@ -51,6 +53,7 @@ public struct Configuration {
     ///   - linkOpenType: How links should be opened
     ///   - linkColor: Color set for links
     ///   - baseURL: Base URL for relative resources
+    ///   - schemeHandlers: Custom URL scheme handlers injected into WKWebViewConfiguration
     ///   - mediaClickHandler: Handler for image/video click events
     ///   - wordClickHandler: Handler for tapped words in text content
     ///   - errorHandler: Handler for error events
@@ -76,6 +79,7 @@ public struct Configuration {
             isImportant: true
         ),
         baseURL: URL? = Bundle.main.bundleURL,
+        schemeHandlers: [String: any WKURLSchemeHandler] = [:],
         mediaClickHandler: MediaClickHandler? = nil,
         wordClickHandler: WordClickHandler? = nil,
         errorHandler: ErrorHandler? = nil,
@@ -94,6 +98,7 @@ public struct Configuration {
         self.linkOpenType = linkOpenType
         self.linkColor = linkColor
         self.baseURL = baseURL
+        self.schemeHandlers = schemeHandlers
         self.mediaClickHandler = mediaClickHandler
         self.wordClickHandler = wordClickHandler
         self.errorHandler = errorHandler

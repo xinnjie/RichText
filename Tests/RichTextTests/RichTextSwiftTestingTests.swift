@@ -221,6 +221,9 @@ struct RichTextAllTests {
             #expect(RichTextConstants.wordClickScript.contains("[A-Za-z'-]+"))
             #expect(RichTextConstants.wordClickScript.contains("word.length <= 1"))
             #expect(RichTextConstants.wordClickScript.contains("closest(\"a\")"))
+            #expect(RichTextConstants.wordClickScript.contains("window.getSelection"))
+            #expect(RichTextConstants.wordClickScript.contains("rangeCount === 0"))
+            #expect(RichTextConstants.wordClickScript.contains("distanceFromStart"))
         }
     }
     
@@ -394,16 +397,16 @@ struct RichTextAllTests {
         
         @Test("Word click handler configuration")
         func wordClickHandlerConfiguration() {
-      var word: String?
+      var tappedWord: String?
             let config = Configuration(
                 wordClickHandler: { word in
-          word = word
+          tappedWord = word
                 }
             )
             
             #expect(config.wordClickHandler != nil)
             config.wordClickHandler?("example")
-      #expect(word == "example")
+      #expect(tappedWord == "example")
         }
         
         @Test("Custom placeholder configuration")

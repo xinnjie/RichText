@@ -89,6 +89,59 @@ public struct RichTextConstants {
     // MARK: - Word Click Script (v3.0.0)
     public static let wordClickScript = """
         (function () {
+          var pointerStart = null;
+          var movementThreshold = 8;
+
+          function pointFromEvent(event) {
+            if (!event) return null;
+
+            if (event.changedTouches && event.changedTouches.length > 0) {
+              return {
+                x: event.changedTouches[0].clientX,
+                y: event.changedTouches[0].clientY
+              };
+            }
+
+            if (event.touches && event.touches.length > 0) {
+              return {
+                x: event.touches[0].clientX,
+                y: event.touches[0].clientY
+              };
+            }
+
+            if (typeof event.clientX === "number" && typeof event.clientY === "number") {
+              return { x: event.clientX, y: event.clientY };
+            }
+
+            return null;
+          }
+
+          function hasActiveSelection() {
+            var selection = window.getSelection ? window.getSelection() : null;
+            if (!selection) return false;
+            if (selection.rangeCount === 0) return false;
+            return !selection.getRangeAt(0).collapsed;
+          }
+
+          function rememberPointerStart(event) {
+            var point = pointFromEvent(event);
+            pointerStart = {
+              point: point,
+              hadSelectionAtStart: hasActiveSelection()
+            };
+          }
+
+          function distanceFromStart(event) {
+            if (!pointerStart || !pointerStart.point) return 0;
+
+            var point = pointFromEvent(event);
+            if (!point) return 0;
+
+            var deltaX = point.x - pointerStart.point.x;
+            var deltaY = point.y - pointerStart.point.y;
+            return Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+          }
+
           function caretRangeAtPoint(x, y) {
             if (document.caretRangeFromPoint) {
               return document.caretRangeFromPoint(x, y);
@@ -126,12 +179,35 @@ public struct RichTextConstants {
             return null;
           }
 
+          document.addEventListener("mousedown", rememberPointerStart, true);
+          document.addEventListener("touchstart", rememberPointerStart, true);
+
           document.addEventListener("click", function (event) {
             var target = event.target;
             var element = target && target.nodeType === Node.TEXT_NODE ? target.parentElement : target;
-            if (element && element.closest && element.closest("a")) return;
+            if (element && element.closest && element.closest("a")) {
+              pointerStart = null;
+              return;
+            }
+
+            if (pointerStart && pointerStart.hadSelectionAtStart) {
+              pointerStart = null;
+              return;
+            }
+
+            if (hasActiveSelection()) {
+              pointerStart = null;
+              return;
+            }
+
+            if (distanceFromStart(event) > movementThreshold) {
+              pointerStart = null;
+              return;
+            }
 
             var word = extractWordAtPoint(event.clientX, event.clientY);
+            pointerStart = null;
+
             if (!word || word.length <= 1) return;
 
             if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.wordClick) {

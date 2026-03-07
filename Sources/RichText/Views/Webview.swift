@@ -13,6 +13,19 @@ import os.log
 /// Logger for WebView performance monitoring
 private let webViewLogger = Logger(subsystem: "com.nuplay.richtext", category: "WebView")
 
+struct RichTextLoadRequest: Equatable {
+  let htmlString: String
+  let baseURL: URL?
+  let width: CGFloat
+}
+
+func shouldReloadHTML(
+  previousRequest: RichTextLoadRequest?,
+  newRequest: RichTextLoadRequest
+) -> Bool {
+  previousRequest != newRequest
+}
+
 struct WebView {
   @Environment(\.multilineTextAlignment) var alignment
   @Binding var dynamicHeight: CGFloat
@@ -121,20 +134,24 @@ struct WebView {
       webview.backgroundColor = UIColor.clear
       webview.scrollView.backgroundColor = UIColor.clear
 
+      webview.frame.size = .init(width: self.width, height: self.dynamicHeight)
+
       // Load HTML content
-      loadHTML(in: webview)
+      context.coordinator.parent = self
+      loadHTMLIfNeeded(in: webview, coordinator: context.coordinator)
 
       return webview
     }
 
     func updateUIView(_ uiView: WKWebView, context: Context) {
-      loadHTML(in: uiView)
+      context.coordinator.parent = self
       if let selectableWebView = uiView as? SelectableWKWebView {
         selectableWebView.onDefineSelection = conf.textSelectionHandler
       }
 
       // Update frame directly without timer to avoid state modification during view update
       uiView.frame.size = .init(width: self.width, height: self.dynamicHeight)
+      loadHTMLIfNeeded(in: uiView, coordinator: context.coordinator)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -228,18 +245,22 @@ struct WebView {
 
       // Configure appearance
       webview.setValue(false, forKey: "drawsBackground")
+      webview.frame.size = .init(width: self.width, height: self.dynamicHeight)
 
       // Load HTML content
-      loadHTML(in: webview)
+      context.coordinator.parent = self
+      loadHTMLIfNeeded(in: webview, coordinator: context.coordinator)
 
       return webview
     }
 
-    func updateNSView(_ nsView: WKWebView, context _: Context) {
-      loadHTML(in: nsView)
+    func updateNSView(_ nsView: WKWebView, context: Context) {
+      context.coordinator.parent = self
       if let selectableWebView = nsView as? SelectableWKWebView {
         selectableWebView.onDefineSelection = conf.textSelectionHandler
       }
+      nsView.frame.size = .init(width: self.width, height: self.dynamicHeight)
+      loadHTMLIfNeeded(in: nsView, coordinator: context.coordinator)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -251,6 +272,7 @@ struct WebView {
 extension WebView {
   class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     var parent: WebView
+    var lastLoadRequest: RichTextLoadRequest?
 
     init(_ parent: WebView) {
       self.parent = parent
@@ -346,15 +368,17 @@ extension WebView {
 
     @MainActor
     private func handleWordClick(_ body: Any) async {
-      guard let word = body as? String else {
+      guard let payload = wordClickPayload(from: body) else {
         webViewLogger.warning("Invalid word tap payload")
         return
       }
 
-      let trimmedWord = word.trimmingCharacters(in: .whitespacesAndNewlines)
+      let trimmedWord = payload.word.trimmingCharacters(in: .whitespacesAndNewlines)
       guard trimmedWord.count > 1 else { return }
 
-      self.parent.conf.wordClickHandler?(trimmedWord)
+      self.parent.conf.wordClickHandler?(
+        WordClickPayload(word: trimmedWord, attachmentAnchor: payload.attachmentAnchor)
+      )
     }
 
     @MainActor
@@ -374,9 +398,33 @@ extension WebView {
       }
 
       let contextText = messageBody["contextText"] as? String
+      let anchorX = messageBody["anchorX"] as? Double
+      let anchorY = messageBody["anchorY"] as? Double
       return normalizeTextSelectionPayload(
         selectedText: selectedText,
-        contextText: contextText
+        contextText: contextText,
+        anchorX: anchorX,
+        anchorY: anchorY
+      )
+    }
+
+    private func wordClickPayload(from body: Any) -> WordClickPayload? {
+      if let word = body as? String {
+        return WordClickPayload(word: word)
+      }
+
+      guard let messageBody = body as? [String: Any],
+        let word = messageBody["word"] as? String
+      else {
+        return nil
+      }
+
+      return WordClickPayload(
+        word: word,
+        attachmentAnchor: normalizeRichTextAttachmentAnchor(
+          x: messageBody["anchorX"] as? Double,
+          y: messageBody["anchorY"] as? Double
+        )
       )
     }
     func webView(
@@ -446,16 +494,25 @@ extension WebView {
 }
 
 extension WebView {
-  /// Loads HTML content into the WebView safely on main thread
-  /// - Parameter webView: The WKWebView instance to load content into
-  private func loadHTML(in webView: WKWebView) {
-    Task { @MainActor in
-      let htmlString = generateHTML()
+  func makeLoadRequest() -> RichTextLoadRequest {
+    RichTextLoadRequest(
+      htmlString: generateHTML(),
+      baseURL: conf.baseURL,
+      width: width
+    )
+  }
 
-      webViewLogger.debug("Loading HTML content (\(htmlString.count) characters)")
-
-      webView.loadHTMLString(htmlString, baseURL: conf.baseURL)
+  /// Reload only when rendered HTML or base URL changes. Lookup popover state updates should not
+  /// force a WebView reload, or article content will visibly re-render on every dictionary tap.
+  private func loadHTMLIfNeeded(in webView: WKWebView, coordinator: Coordinator) {
+    let request = makeLoadRequest()
+    guard shouldReloadHTML(previousRequest: coordinator.lastLoadRequest, newRequest: request) else {
+      return
     }
+
+    coordinator.lastLoadRequest = request
+    webViewLogger.debug("Loading HTML content (\(request.htmlString.count) characters)")
+    webView.loadHTMLString(request.htmlString, baseURL: request.baseURL)
   }
 
   /// Generates the complete HTML string for the WebView

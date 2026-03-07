@@ -96,6 +96,7 @@ public struct RichTextConstants {
     (function () {
       var pointerStart = null;
       var movementThreshold = 8;
+      var containerId = "\(RichTextConstants.richTextContainerID)";
 
       function pointFromEvent(event) {
         if (!event) return null;
@@ -162,6 +163,19 @@ public struct RichTextConstants {
         return null;
       }
 
+      function normalizedAnchor(clientX, clientY) {
+        var container = document.getElementById(containerId);
+        if (!container) return null;
+
+        var rect = container.getBoundingClientRect();
+        if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+
+        return {
+          x: (clientX - rect.left) / rect.width,
+          y: (clientY - rect.top) / rect.height
+        };
+      }
+
       function extractWordAtPoint(x, y) {
         var range = caretRangeAtPoint(x, y);
         if (!range) return null;
@@ -216,7 +230,12 @@ public struct RichTextConstants {
         if (!word || word.length <= 1) return;
 
         if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.wordClick) {
-          window.webkit.messageHandlers.wordClick.postMessage(word);
+          var anchor = normalizedAnchor(event.clientX, event.clientY);
+          window.webkit.messageHandlers.wordClick.postMessage({
+            word: word,
+            anchorX: anchor ? anchor.x : null,
+            anchorY: anchor ? anchor.y : null
+          });
         }
       });
     })();
@@ -226,6 +245,7 @@ public struct RichTextConstants {
     (function () {
       var scheduled = false;
       var blockSelector = "p, li, blockquote, figcaption, h1, h2, h3, h4, h5, h6, article, section, div";
+      var containerId = "\(RichTextConstants.richTextContainerID)";
 
       function normalizeText(text) {
         return (text || "").replace(/\\s+/g, " ").trim();
@@ -255,9 +275,29 @@ public struct RichTextConstants {
           contextText = selectedText;
         }
 
+        var container = document.getElementById(containerId);
+        var containerRect = container ? container.getBoundingClientRect() : null;
+        var selectionRect = range.getBoundingClientRect();
+        var anchorX = null;
+        var anchorY = null;
+
+        if (
+          containerRect &&
+          containerRect.width > 0 &&
+          containerRect.height > 0 &&
+          selectionRect &&
+          selectionRect.width >= 0 &&
+          selectionRect.height >= 0
+        ) {
+          anchorX = ((selectionRect.left + selectionRect.right) / 2 - containerRect.left) / containerRect.width;
+          anchorY = ((selectionRect.top + selectionRect.bottom) / 2 - containerRect.top) / containerRect.height;
+        }
+
         return {
           selectedText: selectedText,
-          contextText: contextText
+          contextText: contextText,
+          anchorX: anchorX,
+          anchorY: anchorY
         };
       }
 

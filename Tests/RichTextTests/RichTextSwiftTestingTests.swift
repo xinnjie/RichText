@@ -213,6 +213,85 @@ struct RichTextAllTests {
     }
   }
 
+  @Suite("HTML Reload Decision Tests")
+  struct HTMLReloadDecisionTests {
+
+    @Test("Reloads when there is no previous request")
+    func reloadsForInitialLoad() {
+      let request = RichTextLoadRequest(
+        htmlString: "<html><body>same</body></html>",
+        baseURL: URL(string: "https://example.com"),
+        width: 320
+      )
+
+      #expect(shouldReloadHTML(previousRequest: nil, newRequest: request))
+    }
+
+    @Test("Skips reload when HTML and base URL stay the same")
+    func skipsReloadWhenRenderedContentIsUnchanged() {
+      let first = RichTextLoadRequest(
+        htmlString: "<html><body>same</body></html>",
+        baseURL: URL(string: "https://example.com"),
+        width: 320
+      )
+      let second = RichTextLoadRequest(
+        htmlString: "<html><body>same</body></html>",
+        baseURL: URL(string: "https://example.com"),
+        width: 320
+      )
+
+      #expect(!shouldReloadHTML(previousRequest: first, newRequest: second))
+    }
+
+    @Test("Reloads when rendered HTML changes")
+    func reloadsWhenRenderedHTMLChanges() {
+      let first = RichTextLoadRequest(
+        htmlString: "<html><body>before</body></html>",
+        baseURL: URL(string: "https://example.com"),
+        width: 320
+      )
+      let second = RichTextLoadRequest(
+        htmlString: "<html><body>after</body></html>",
+        baseURL: URL(string: "https://example.com"),
+        width: 320
+      )
+
+      #expect(shouldReloadHTML(previousRequest: first, newRequest: second))
+    }
+
+    @Test("Reloads when base URL changes")
+    func reloadsWhenBaseURLChanges() {
+      let first = RichTextLoadRequest(
+        htmlString: "<html><body>same</body></html>",
+        baseURL: URL(string: "https://example.com"),
+        width: 320
+      )
+      let second = RichTextLoadRequest(
+        htmlString: "<html><body>same</body></html>",
+        baseURL: URL(string: "https://example.org"),
+        width: 320
+      )
+
+      #expect(shouldReloadHTML(previousRequest: first, newRequest: second))
+    }
+
+    @Test("Reloads when width changes")
+    func reloadsWhenWidthChanges() {
+      let first = RichTextLoadRequest(
+        htmlString: "<html><body>same</body></html>",
+        baseURL: URL(string: "https://example.com"),
+        width: 320
+      )
+      let second = RichTextLoadRequest(
+        htmlString: "<html><body>same</body></html>",
+        baseURL: URL(string: "https://example.com"),
+        width: 540
+      )
+
+      #expect(shouldReloadHTML(previousRequest: first, newRequest: second))
+    }
+  }
+
   @Suite("Constants Validation Tests")
   struct ConstantsTests {
 
@@ -244,14 +323,17 @@ struct RichTextAllTests {
     func trimsSelectionText() {
       let payload = normalizeTextSelectionPayload(
         selectedText: "  phrase  ",
-        contextText: "  Paragraph text  "
+        contextText: "  Paragraph text  ",
+        anchorX: 0.25,
+        anchorY: 0.75
       )
 
       #expect(
         payload
           == TextSelectionPayload(
             selectedText: "phrase",
-            contextText: "Paragraph text"
+            contextText: "Paragraph text",
+            attachmentAnchor: RichTextAttachmentAnchor(x: 0.25, y: 0.75)
           ))
     }
 
@@ -277,6 +359,24 @@ struct RichTextAllTests {
           == TextSelectionPayload(
             selectedText: "phrase",
             contextText: "phrase"
+          ))
+    }
+
+    @Test("Normalization ignores invalid anchors")
+    func ignoresInvalidAnchors() {
+      let payload = normalizeTextSelectionPayload(
+        selectedText: "phrase",
+        contextText: "Paragraph text",
+        anchorX: .infinity,
+        anchorY: 0.5
+      )
+
+      #expect(
+        payload
+          == TextSelectionPayload(
+            selectedText: "phrase",
+            contextText: "Paragraph text",
+            attachmentAnchor: nil
           ))
     }
   }
@@ -453,18 +553,18 @@ struct RichTextAllTests {
       #expect(customTransition.configuration.transition != nil)
     }
 
-    @Test("Word click handler configuration")
+    @Test("Word click payload handler configuration")
     func wordClickHandlerConfiguration() {
-      var tappedWord: String?
+      var tappedPayload: WordClickPayload?
       let config = Configuration(
-        wordClickHandler: { word in
-          tappedWord = word
+        wordClickHandler: { payload in
+          tappedPayload = payload
         }
       )
 
       #expect(config.wordClickHandler != nil)
-      config.wordClickHandler?("example")
-      #expect(tappedWord == "example")
+      config.wordClickHandler?(WordClickPayload(word: "example"))
+      #expect(tappedPayload == WordClickPayload(word: "example"))
     }
 
     @Test("Custom placeholder configuration")

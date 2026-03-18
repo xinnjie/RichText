@@ -312,6 +312,8 @@ struct RichTextAllTests {
       #expect(RichTextConstants.wordClickScript.contains("window.getSelection"))
       #expect(RichTextConstants.wordClickScript.contains("rangeCount === 0"))
       #expect(RichTextConstants.wordClickScript.contains("distanceFromStart"))
+      #expect(RichTextConstants.wordClickScript.contains("anchorWidth"))
+      #expect(RichTextConstants.textSelectionScript.contains("anchorHeight"))
       #expect(!RichTextConstants.textSelectionScript.isEmpty)
     }
   }
@@ -325,7 +327,9 @@ struct RichTextAllTests {
         selectedText: "  phrase  ",
         contextText: "  Paragraph text  ",
         anchorX: 0.25,
-        anchorY: 0.75
+        anchorY: 0.75,
+        anchorWidth: 0.2,
+        anchorHeight: 0.05
       )
 
       #expect(
@@ -333,7 +337,12 @@ struct RichTextAllTests {
           == TextSelectionPayload(
             selectedText: "phrase",
             contextText: "Paragraph text",
-            attachmentAnchor: RichTextAttachmentAnchor(x: 0.25, y: 0.75)
+            attachmentAnchor: RichTextAttachmentAnchor(
+              x: 0.25,
+              y: 0.75,
+              width: 0.2,
+              height: 0.05
+            )
           ))
     }
 
@@ -368,7 +377,9 @@ struct RichTextAllTests {
         selectedText: "phrase",
         contextText: "Paragraph text",
         anchorX: .infinity,
-        anchorY: 0.5
+        anchorY: 0.5,
+        anchorWidth: .infinity,
+        anchorHeight: 0.2
       )
 
       #expect(
@@ -378,6 +389,18 @@ struct RichTextAllTests {
             contextText: "Paragraph text",
             attachmentAnchor: nil
           ))
+    }
+
+    @Test("Normalization keeps center anchor when dimensions are invalid")
+    func ignoresInvalidDimensions() {
+      let anchor = normalizeRichTextAttachmentAnchor(
+        x: 0.4,
+        y: 0.6,
+        width: .infinity,
+        height: -1
+      )
+
+      #expect(anchor == RichTextAttachmentAnchor(x: 0.4, y: 0.6, width: nil, height: 0))
     }
   }
 

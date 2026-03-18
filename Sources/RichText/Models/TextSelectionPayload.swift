@@ -3,10 +3,19 @@ import Foundation
 public struct RichTextAttachmentAnchor: Equatable, Sendable {
   public let x: Double
   public let y: Double
+  public let width: Double?
+  public let height: Double?
 
-  public init(x: Double, y: Double) {
+  public init(x: Double, y: Double, width: Double? = nil, height: Double? = nil) {
     self.x = min(max(x, 0), 1)
     self.y = min(max(y, 0), 1)
+    self.width = Self.normalizeDimension(width)
+    self.height = Self.normalizeDimension(height)
+  }
+
+  private static func normalizeDimension(_ value: Double?) -> Double? {
+    guard let value, value.isFinite else { return nil }
+    return min(max(value, 0), 1)
   }
 }
 
@@ -40,7 +49,9 @@ func normalizeTextSelectionPayload(
   selectedText: String,
   contextText: String?,
   anchorX: Double? = nil,
-  anchorY: Double? = nil
+  anchorY: Double? = nil,
+  anchorWidth: Double? = nil,
+  anchorHeight: Double? = nil
 ) -> TextSelectionPayload? {
   let normalizedSelection =
     selectedText
@@ -55,7 +66,12 @@ func normalizeTextSelectionPayload(
     .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
     .trimmingCharacters(in: .whitespacesAndNewlines)
 
-  let attachmentAnchor = normalizeRichTextAttachmentAnchor(x: anchorX, y: anchorY)
+  let attachmentAnchor = normalizeRichTextAttachmentAnchor(
+    x: anchorX,
+    y: anchorY,
+    width: anchorWidth,
+    height: anchorHeight
+  )
 
   return TextSelectionPayload(
     selectedText: normalizedSelection,
@@ -66,7 +82,9 @@ func normalizeTextSelectionPayload(
 
 func normalizeRichTextAttachmentAnchor(
   x: Double?,
-  y: Double?
+  y: Double?,
+  width: Double? = nil,
+  height: Double? = nil
 ) -> RichTextAttachmentAnchor? {
   guard let x,
     let y,
@@ -76,5 +94,5 @@ func normalizeRichTextAttachmentAnchor(
     return nil
   }
 
-  return RichTextAttachmentAnchor(x: x, y: y)
+  return RichTextAttachmentAnchor(x: x, y: y, width: width, height: height)
 }

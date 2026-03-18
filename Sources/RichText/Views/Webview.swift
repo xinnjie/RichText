@@ -400,11 +400,15 @@ extension WebView {
       let contextText = messageBody["contextText"] as? String
       let anchorX = messageBody["anchorX"] as? Double
       let anchorY = messageBody["anchorY"] as? Double
+      let anchorWidth = messageBody["anchorWidth"] as? Double
+      let anchorHeight = messageBody["anchorHeight"] as? Double
       return normalizeTextSelectionPayload(
         selectedText: selectedText,
         contextText: contextText,
         anchorX: anchorX,
-        anchorY: anchorY
+        anchorY: anchorY,
+        anchorWidth: anchorWidth,
+        anchorHeight: anchorHeight
       )
     }
 
@@ -423,7 +427,9 @@ extension WebView {
         word: word,
         attachmentAnchor: normalizeRichTextAttachmentAnchor(
           x: messageBody["anchorX"] as? Double,
-          y: messageBody["anchorY"] as? Double
+          y: messageBody["anchorY"] as? Double,
+          width: messageBody["anchorWidth"] as? Double,
+          height: messageBody["anchorHeight"] as? Double
         )
       )
     }

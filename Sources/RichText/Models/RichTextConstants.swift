@@ -163,20 +163,23 @@ public struct RichTextConstants {
         return null;
       }
 
-      function normalizedAnchor(clientX, clientY) {
+      function normalizedAnchorForRect(rect) {
         var container = document.getElementById(containerId);
         if (!container) return null;
 
-        var rect = container.getBoundingClientRect();
-        if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+        var containerRect = container.getBoundingClientRect();
+        if (!containerRect || containerRect.width <= 0 || containerRect.height <= 0) return null;
+        if (!rect || rect.width < 0 || rect.height < 0) return null;
 
         return {
-          x: (clientX - rect.left) / rect.width,
-          y: (clientY - rect.top) / rect.height
+          x: ((rect.left + rect.right) / 2 - containerRect.left) / containerRect.width,
+          y: ((rect.top + rect.bottom) / 2 - containerRect.top) / containerRect.height,
+          width: rect.width / containerRect.width,
+          height: rect.height / containerRect.height
         };
       }
 
-      function extractWordAtPoint(x, y) {
+      function wordPayloadAtPoint(x, y) {
         var range = caretRangeAtPoint(x, y);
         if (!range) return null;
 
@@ -192,7 +195,14 @@ public struct RichTextConstants {
           var start = match.index;
           var end = start + match[0].length;
           if (offset >= start && offset <= end) {
-            return match[0];
+            var wordRange = document.createRange();
+            wordRange.setStart(node, start);
+            wordRange.setEnd(node, end);
+
+            return {
+              word: match[0],
+              anchor: normalizedAnchorForRect(wordRange.getBoundingClientRect())
+            };
           }
         }
         return null;
@@ -224,17 +234,18 @@ public struct RichTextConstants {
           return;
         }
 
-        var word = extractWordAtPoint(event.clientX, event.clientY);
+        var payload = wordPayloadAtPoint(event.clientX, event.clientY);
         pointerStart = null;
 
-        if (!word || word.length <= 1) return;
+        if (!payload || !payload.word || payload.word.length <= 1) return;
 
         if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.wordClick) {
-          var anchor = normalizedAnchor(event.clientX, event.clientY);
           window.webkit.messageHandlers.wordClick.postMessage({
-            word: word,
-            anchorX: anchor ? anchor.x : null,
-            anchorY: anchor ? anchor.y : null
+            word: payload.word,
+            anchorX: payload.anchor ? payload.anchor.x : null,
+            anchorY: payload.anchor ? payload.anchor.y : null,
+            anchorWidth: payload.anchor ? payload.anchor.width : null,
+            anchorHeight: payload.anchor ? payload.anchor.height : null
           });
         }
       });
@@ -275,29 +286,16 @@ public struct RichTextConstants {
           contextText = selectedText;
         }
 
-        var container = document.getElementById(containerId);
-        var containerRect = container ? container.getBoundingClientRect() : null;
         var selectionRect = range.getBoundingClientRect();
-        var anchorX = null;
-        var anchorY = null;
-
-        if (
-          containerRect &&
-          containerRect.width > 0 &&
-          containerRect.height > 0 &&
-          selectionRect &&
-          selectionRect.width >= 0 &&
-          selectionRect.height >= 0
-        ) {
-          anchorX = ((selectionRect.left + selectionRect.right) / 2 - containerRect.left) / containerRect.width;
-          anchorY = ((selectionRect.top + selectionRect.bottom) / 2 - containerRect.top) / containerRect.height;
-        }
+        var anchor = normalizedAnchorForRect(selectionRect);
 
         return {
           selectedText: selectedText,
           contextText: contextText,
-          anchorX: anchorX,
-          anchorY: anchorY
+          anchorX: anchor ? anchor.x : null,
+          anchorY: anchor ? anchor.y : null,
+          anchorWidth: anchor ? anchor.width : null,
+          anchorHeight: anchor ? anchor.height : null
         };
       }
 

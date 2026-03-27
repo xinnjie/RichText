@@ -19,11 +19,37 @@ struct RichTextLoadRequest: Equatable {
   let width: CGFloat
 }
 
+enum RichTextDOMCommandDisposition: Equatable {
+  case none
+  case queue(RichTextDOMCommand)
+  case execute(RichTextDOMCommand)
+}
+
 func shouldReloadHTML(
   previousRequest: RichTextLoadRequest?,
   newRequest: RichTextLoadRequest
 ) -> Bool {
   previousRequest != newRequest
+}
+
+func domCommandDisposition(
+  isDocumentReady: Bool,
+  lastExecutedCommandID: String?,
+  requestedCommand: RichTextDOMCommand?
+) -> RichTextDOMCommandDisposition {
+  guard let requestedCommand else {
+    return .none
+  }
+
+  guard requestedCommand.id != lastExecutedCommandID else {
+    return .none
+  }
+
+  if isDocumentReady {
+    return .execute(requestedCommand)
+  }
+
+  return .queue(requestedCommand)
 }
 
 struct WebView {
@@ -138,6 +164,7 @@ struct WebView {
 
       // Load HTML content
       context.coordinator.parent = self
+      context.coordinator.webView = webview
       loadHTMLIfNeeded(in: webview, coordinator: context.coordinator)
 
       return webview
@@ -249,6 +276,7 @@ struct WebView {
 
       // Load HTML content
       context.coordinator.parent = self
+      context.coordinator.webView = webview
       loadHTMLIfNeeded(in: webview, coordinator: context.coordinator)
 
       return webview
@@ -273,6 +301,10 @@ extension WebView {
   class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     var parent: WebView
     var lastLoadRequest: RichTextLoadRequest?
+    weak var webView: WKWebView?
+    var isDocumentReady = false
+    var lastExecutedDOMCommandID: String?
+    var pendingDOMCommand: RichTextDOMCommand?
 
     init(_ parent: WebView) {
       self.parent = parent
@@ -294,6 +326,15 @@ extension WebView {
       Task { @MainActor in
         self.parent.conf.errorHandler?(
           .htmlLoadingFailed("\(error.localizedDescription): \(self.parent.html.prefix(100))"))
+      }
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+      _ = navigation
+      self.webView = webView
+      isDocumentReady = true
+      Task { @MainActor in
+        self.flushPendingDOMCommandIfNeeded()
       }
     }
 
@@ -496,6 +537,54 @@ extension WebView {
 
       decisionHandler(WKNavigationActionPolicy.cancel)
     }
+
+    func requestDOMCommandExecutionIfNeeded() {
+      switch domCommandDisposition(
+        isDocumentReady: isDocumentReady,
+        lastExecutedCommandID: lastExecutedDOMCommandID,
+        requestedCommand: parent.conf.domCommand
+      ) {
+      case .none:
+        pendingDOMCommand = nil
+      case .queue(let command):
+        pendingDOMCommand = command
+      case .execute(let command):
+        executeDOMCommand(command)
+      }
+    }
+
+    @MainActor
+    func flushPendingDOMCommandIfNeeded() {
+      guard let pendingDOMCommand else { return }
+      guard domCommandDisposition(
+        isDocumentReady: isDocumentReady,
+        lastExecutedCommandID: lastExecutedDOMCommandID,
+        requestedCommand: pendingDOMCommand
+      ) == .execute(pendingDOMCommand) else {
+        if pendingDOMCommand.id == lastExecutedDOMCommandID {
+          self.pendingDOMCommand = nil
+        }
+        return
+      }
+
+      executeDOMCommand(pendingDOMCommand)
+    }
+
+    @MainActor
+    private func executeDOMCommand(_ command: RichTextDOMCommand) {
+      guard let webView else {
+        pendingDOMCommand = command
+        return
+      }
+
+      webView.evaluateJavaScript(command.javaScript) { _, error in
+        if let error {
+          webViewLogger.error("DOM command failed: \(error.localizedDescription)")
+        }
+      }
+      lastExecutedDOMCommandID = command.id
+      pendingDOMCommand = nil
+    }
   }
 }
 
@@ -513,10 +602,15 @@ extension WebView {
   private func loadHTMLIfNeeded(in webView: WKWebView, coordinator: Coordinator) {
     let request = makeLoadRequest()
     guard shouldReloadHTML(previousRequest: coordinator.lastLoadRequest, newRequest: request) else {
+      coordinator.requestDOMCommandExecutionIfNeeded()
       return
     }
 
     coordinator.lastLoadRequest = request
+    coordinator.webView = webView
+    coordinator.isDocumentReady = false
+    coordinator.lastExecutedDOMCommandID = nil
+    coordinator.pendingDOMCommand = conf.domCommand
     webViewLogger.debug("Loading HTML content (\(request.htmlString.count) characters)")
     webView.loadHTMLString(request.htmlString, baseURL: request.baseURL)
   }

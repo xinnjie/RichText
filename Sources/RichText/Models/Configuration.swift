@@ -34,6 +34,7 @@ public struct Configuration {
   public var mediaClickHandler: MediaClickHandler?
   public var wordClickHandler: WordClickHandler?
   public var textSelectionHandler: TextSelectionHandler?
+  public var domCommand: RichTextDOMCommand?
 
   public var errorHandler: ErrorHandler?
 
@@ -85,6 +86,7 @@ public struct Configuration {
     mediaClickHandler: MediaClickHandler? = nil,
     wordClickHandler: WordClickHandler? = nil,
     textSelectionHandler: TextSelectionHandler? = nil,
+    domCommand: RichTextDOMCommand? = nil,
     errorHandler: ErrorHandler? = nil,
     isColorsImportant: ColorPreference = .onlyLinks,
     transition: Animation? = .none
@@ -105,6 +107,7 @@ public struct Configuration {
     self.mediaClickHandler = mediaClickHandler
     self.wordClickHandler = wordClickHandler
     self.textSelectionHandler = textSelectionHandler
+    self.domCommand = domCommand
     self.errorHandler = errorHandler
     self.isColorsImportant = isColorsImportant
     self.transition = transition

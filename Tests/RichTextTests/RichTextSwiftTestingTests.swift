@@ -31,6 +31,7 @@ struct RichTextAllTests {
       #expect(config.schemeHandlers.isEmpty)
       #expect(config.wordClickHandler == nil)
       #expect(config.textSelectionHandler == nil)
+      #expect(config.domCommand == nil)
     }
 
     @Test("Configuration accepts custom scheme handlers")
@@ -66,6 +67,14 @@ struct RichTextAllTests {
       #expect(config.isColorsImportant == .all)
       #expect(config.wordClickHandler != nil)
       #expect(config.textSelectionHandler != nil)
+    }
+
+    @Test("Configuration accepts DOM command")
+    func configurationWithDOMCommand() {
+      let command = RichTextDOMCommand(id: "command-1", javaScript: "window.test = true;")
+      let config = Configuration(domCommand: command)
+
+      #expect(config.domCommand == command)
     }
 
     @Test("Configuration with dynamic type support")
@@ -289,6 +298,45 @@ struct RichTextAllTests {
       )
 
       #expect(shouldReloadHTML(previousRequest: first, newRequest: second))
+    }
+
+    @Test("Queues DOM command before document load finishes")
+    func queuesDOMCommandWhileDocumentIsLoading() {
+      let command = RichTextDOMCommand(id: "command-1", javaScript: "window.test = true;")
+
+      #expect(
+        domCommandDisposition(
+          isDocumentReady: false,
+          lastExecutedCommandID: nil,
+          requestedCommand: command
+        ) == .queue(command)
+      )
+    }
+
+    @Test("Executes DOM command after document load finishes")
+    func executesDOMCommandWhenDocumentIsReady() {
+      let command = RichTextDOMCommand(id: "command-1", javaScript: "window.test = true;")
+
+      #expect(
+        domCommandDisposition(
+          isDocumentReady: true,
+          lastExecutedCommandID: nil,
+          requestedCommand: command
+        ) == .execute(command)
+      )
+    }
+
+    @Test("Skips DOM command when ID already executed")
+    func skipsDOMCommandWhenAlreadyExecuted() {
+      let command = RichTextDOMCommand(id: "command-1", javaScript: "window.test = true;")
+
+      #expect(
+        domCommandDisposition(
+          isDocumentReady: true,
+          lastExecutedCommandID: "command-1",
+          requestedCommand: command
+        ) == .none
+      )
     }
   }
 

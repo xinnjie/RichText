@@ -32,6 +32,7 @@ struct RichTextAllTests {
       #expect(config.wordClickHandler == nil)
       #expect(config.textSelectionHandler == nil)
       #expect(config.domCommand == nil)
+      #expect(config.layoutMode == .fitContent)
     }
 
     @Test("Configuration accepts custom scheme handlers")
@@ -75,6 +76,13 @@ struct RichTextAllTests {
       let config = Configuration(domCommand: command)
 
       #expect(config.domCommand == command)
+    }
+
+    @Test("Configuration accepts scrollable layout mode")
+    func configurationWithScrollableLayoutMode() {
+      let config = Configuration(layoutMode: .scrollable(viewportHeight: 320))
+
+      #expect(config.layoutMode == .scrollable(viewportHeight: 320))
     }
 
     @Test("Configuration with dynamic type support")
@@ -219,6 +227,21 @@ struct RichTextAllTests {
 
       #expect(richText.html == html)
       #expect(richText.placeholder != nil)
+    }
+  }
+
+  @Suite("Layout Mode Tests")
+  struct LayoutModeTests {
+    @Test("Fit content layout uses measured content height")
+    func fitContentViewportHeight() {
+      #expect(richTextViewportHeight(for: .fitContent, contentHeight: 420) == 420)
+      #expect(!richTextAllowsInternalScrolling(for: .fitContent))
+    }
+
+    @Test("Scrollable layout uses fixed viewport height")
+    func scrollableViewportHeight() {
+      #expect(richTextViewportHeight(for: .scrollable(viewportHeight: 320), contentHeight: 420) == 320)
+      #expect(richTextAllowsInternalScrolling(for: .scrollable(viewportHeight: 320)))
     }
   }
 

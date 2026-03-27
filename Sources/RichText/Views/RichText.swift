@@ -7,6 +7,24 @@
 
 import SwiftUI
 
+func richTextViewportHeight(for layoutMode: RichTextLayoutMode, contentHeight: CGFloat) -> CGFloat {
+    switch layoutMode {
+    case .fitContent:
+        return contentHeight
+    case .scrollable(let viewportHeight):
+        return viewportHeight
+    }
+}
+
+func richTextAllowsInternalScrolling(for layoutMode: RichTextLayoutMode) -> Bool {
+    switch layoutMode {
+    case .fitContent:
+        return false
+    case .scrollable:
+        return true
+    }
+}
+
 /// A SwiftUI view that renders HTML content with customizable styling and behavior.
 /// 
 /// RichText provides a powerful way to display HTML content within SwiftUI applications,
@@ -60,6 +78,11 @@ public struct RichText: View {
 
     /// The view body that renders the HTML content
     public var body: some View {
+        let viewportHeight = richTextViewportHeight(
+            for: configuration.layoutMode,
+            contentHeight: dynamicHeight
+        )
+
         GeometryReader { proxy in
             ZStack(alignment: .top) {
                 // Main WebView that renders the HTML content
@@ -76,7 +99,7 @@ public struct RichText: View {
                 }
             }
         }
-        .frame(height: dynamicHeight) // Dynamic height based on content
+        .frame(height: viewportHeight) // Dynamic height or fixed viewport based on layout mode
     }
 }
 

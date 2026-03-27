@@ -35,6 +35,7 @@ public struct Configuration {
   public var wordClickHandler: WordClickHandler?
   public var textSelectionHandler: TextSelectionHandler?
   public var domCommand: RichTextDOMCommand?
+  public var layoutMode: RichTextLayoutMode
 
   public var errorHandler: ErrorHandler?
 
@@ -87,6 +88,7 @@ public struct Configuration {
     wordClickHandler: WordClickHandler? = nil,
     textSelectionHandler: TextSelectionHandler? = nil,
     domCommand: RichTextDOMCommand? = nil,
+    layoutMode: RichTextLayoutMode = .fitContent,
     errorHandler: ErrorHandler? = nil,
     isColorsImportant: ColorPreference = .onlyLinks,
     transition: Animation? = .none
@@ -108,6 +110,7 @@ public struct Configuration {
     self.wordClickHandler = wordClickHandler
     self.textSelectionHandler = textSelectionHandler
     self.domCommand = domCommand
+    self.layoutMode = layoutMode
     self.errorHandler = errorHandler
     self.isColorsImportant = isColorsImportant
     self.transition = transition

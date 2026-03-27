@@ -68,6 +68,10 @@ struct WebView {
     self.conf = configuration
     self.width = width
   }
+
+  var renderedViewHeight: CGFloat {
+    richTextViewportHeight(for: conf.layoutMode, contentHeight: dynamicHeight)
+  }
 }
 
 #if canImport(UIKit)
@@ -149,8 +153,9 @@ struct WebView {
       webview.onDefineSelection = conf.textSelectionHandler
 
       // Configure scrolling behavior
-      webview.scrollView.bounces = false
-      webview.scrollView.isScrollEnabled = false
+      let allowsInternalScrolling = richTextAllowsInternalScrolling(for: conf.layoutMode)
+      webview.scrollView.bounces = allowsInternalScrolling
+      webview.scrollView.isScrollEnabled = allowsInternalScrolling
 
       // Set delegates
       webview.navigationDelegate = context.coordinator
@@ -160,7 +165,7 @@ struct WebView {
       webview.backgroundColor = UIColor.clear
       webview.scrollView.backgroundColor = UIColor.clear
 
-      webview.frame.size = .init(width: self.width, height: self.dynamicHeight)
+      webview.frame.size = .init(width: self.width, height: renderedViewHeight)
 
       // Load HTML content
       context.coordinator.parent = self
@@ -177,7 +182,10 @@ struct WebView {
       }
 
       // Update frame directly without timer to avoid state modification during view update
-      uiView.frame.size = .init(width: self.width, height: self.dynamicHeight)
+      let allowsInternalScrolling = richTextAllowsInternalScrolling(for: conf.layoutMode)
+      uiView.scrollView.bounces = allowsInternalScrolling
+      uiView.scrollView.isScrollEnabled = allowsInternalScrolling
+      uiView.frame.size = .init(width: self.width, height: renderedViewHeight)
       loadHTMLIfNeeded(in: uiView, coordinator: context.coordinator)
     }
 
@@ -188,8 +196,14 @@ struct WebView {
 #else
   import AppKit
   private class ScrollAdjustedWKWebView: WKWebView {
+    var shouldForwardScrollEvents = true
+
     override public func scrollWheel(with event: NSEvent) {
-      nextResponder?.scrollWheel(with: event)
+      if shouldForwardScrollEvents {
+        nextResponder?.scrollWheel(with: event)
+      } else {
+        super.scrollWheel(with: event)
+      }
     }
   }
 
@@ -272,7 +286,8 @@ struct WebView {
 
       // Configure appearance
       webview.setValue(false, forKey: "drawsBackground")
-      webview.frame.size = .init(width: self.width, height: self.dynamicHeight)
+      webview.shouldForwardScrollEvents = !richTextAllowsInternalScrolling(for: conf.layoutMode)
+      webview.frame.size = .init(width: self.width, height: renderedViewHeight)
 
       // Load HTML content
       context.coordinator.parent = self
@@ -286,8 +301,11 @@ struct WebView {
       context.coordinator.parent = self
       if let selectableWebView = nsView as? SelectableWKWebView {
         selectableWebView.onDefineSelection = conf.textSelectionHandler
+        selectableWebView.shouldForwardScrollEvents = !richTextAllowsInternalScrolling(
+          for: conf.layoutMode
+        )
       }
-      nsView.frame.size = .init(width: self.width, height: self.dynamicHeight)
+      nsView.frame.size = .init(width: self.width, height: renderedViewHeight)
       loadHTMLIfNeeded(in: nsView, coordinator: context.coordinator)
     }
 

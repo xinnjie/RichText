@@ -47,7 +47,30 @@ public struct RichTextConstants {
 
   // MARK: - CSS Selectors and Properties (v3.0.0 - Performance optimized)
   public static let imageCSS =
-    "img{max-height: 100%; min-height: 100%; height:auto; max-width: 100%; width:auto;margin-bottom:5px; border-radius: %@px; loading: lazy;}"
+    """
+    img {
+      max-width: 100%%;
+      width: auto;
+      height: auto;
+      min-height: 0;
+      max-height: none;
+      margin-bottom: 5px;
+      border-radius: %@px;
+      loading: lazy;
+    }
+    figure img,
+    p > img:only-child,
+    div > img:only-child,
+    a:only-child > img {
+      display: block;
+      width: 100%%;
+      max-width: 100%%;
+      height: auto;
+      min-height: 0;
+      max-height: none;
+      margin: 0 0 5px;
+    }
+    """
   public static let textCSS =
     "h1, h2, h3, h4, h5, h6, p, div, dl, ol, ul, pre, blockquote, figure, figcaption, details, summary, article, section, aside, header, footer, nav, main {text-align:%@; line-height: %@%%; font-family: %@; color: %@; background-color: %@; word-wrap: break-word; }"
   public static let iframeCSS = "iframe{width:100%%; height:%dpx; border: none;}"

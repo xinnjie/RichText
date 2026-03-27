@@ -113,6 +113,27 @@ struct RichTextAllTests {
       #expect(css.contains("line-height: 150.0%"))
       #expect(css.contains(expectedAlignment))
     }
+
+    @Test("CSS generation uses responsive image defaults")
+    func cssGenerationUsesResponsiveImageDefaults() {
+      let config = Configuration(imageRadius: 5)
+
+      let css = config.css(isLight: true, alignment: .leading)
+
+      #expect(!css.contains("min-height: 100%"))
+      #expect(!css.contains("max-height: 100%"))
+      #expect(css.contains("max-width: 100%"))
+      #expect(css.contains("width: auto"))
+      #expect(css.contains("height: auto"))
+      #expect(css.contains("min-height: 0"))
+      #expect(css.contains("max-height: none"))
+      #expect(css.contains("figure img"))
+      #expect(css.contains("p > img:only-child"))
+      #expect(css.contains("div > img:only-child"))
+      #expect(css.contains("a:only-child > img"))
+      #expect(css.contains("display: block"))
+      #expect(css.contains("width: 100%"))
+    }
   }
 
   @Suite("ColorSet Tests")

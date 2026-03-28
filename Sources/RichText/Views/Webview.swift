@@ -436,7 +436,11 @@ extension WebView {
       guard trimmedWord.count > 1 else { return }
 
       self.parent.conf.wordClickHandler?(
-        WordClickPayload(word: trimmedWord, attachmentAnchor: payload.attachmentAnchor)
+        WordClickPayload(
+          word: trimmedWord,
+          contextText: payload.contextText,
+          attachmentAnchor: payload.attachmentAnchor
+        )
       )
     }
 
@@ -482,14 +486,13 @@ extension WebView {
         return nil
       }
 
-      return WordClickPayload(
+      return normalizeWordClickPayload(
         word: word,
-        attachmentAnchor: normalizeRichTextAttachmentAnchor(
-          x: messageBody["anchorX"] as? Double,
-          y: messageBody["anchorY"] as? Double,
-          width: messageBody["anchorWidth"] as? Double,
-          height: messageBody["anchorHeight"] as? Double
-        )
+        contextText: messageBody["contextText"] as? String,
+        anchorX: messageBody["anchorX"] as? Double,
+        anchorY: messageBody["anchorY"] as? Double,
+        anchorWidth: messageBody["anchorWidth"] as? Double,
+        anchorHeight: messageBody["anchorHeight"] as? Double
       )
     }
     func webView(

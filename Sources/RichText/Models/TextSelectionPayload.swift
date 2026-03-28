@@ -21,10 +21,16 @@ public struct RichTextAttachmentAnchor: Equatable, Sendable {
 
 public struct WordClickPayload: Equatable, Sendable {
   public let word: String
+  public let contextText: String?
   public let attachmentAnchor: RichTextAttachmentAnchor?
 
-  public init(word: String, attachmentAnchor: RichTextAttachmentAnchor? = nil) {
+  public init(
+    word: String,
+    contextText: String? = nil,
+    attachmentAnchor: RichTextAttachmentAnchor? = nil
+  ) {
     self.word = word
+    self.contextText = contextText
     self.attachmentAnchor = attachmentAnchor
   }
 }
@@ -76,6 +82,37 @@ func normalizeTextSelectionPayload(
   return TextSelectionPayload(
     selectedText: normalizedSelection,
     contextText: normalizedContext.isEmpty ? normalizedSelection : normalizedContext,
+    attachmentAnchor: attachmentAnchor
+  )
+}
+
+func normalizeWordClickPayload(
+  word: String,
+  contextText: String?,
+  anchorX: Double? = nil,
+  anchorY: Double? = nil,
+  anchorWidth: Double? = nil,
+  anchorHeight: Double? = nil
+) -> WordClickPayload? {
+  let normalizedWord = word.trimmingCharacters(in: .whitespacesAndNewlines)
+  guard normalizedWord.isEmpty == false else {
+    return nil
+  }
+
+  let normalizedContext = (contextText ?? "")
+    .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+  let attachmentAnchor = normalizeRichTextAttachmentAnchor(
+    x: anchorX,
+    y: anchorY,
+    width: anchorWidth,
+    height: anchorHeight
+  )
+
+  return WordClickPayload(
+    word: normalizedWord,
+    contextText: normalizedContext.isEmpty ? nil : normalizedContext,
     attachmentAnchor: attachmentAnchor
   )
 }

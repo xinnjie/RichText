@@ -119,7 +119,12 @@ public struct RichTextConstants {
     (function () {
       var pointerStart = null;
       var movementThreshold = 8;
+      var blockSelector = "p, li, blockquote, figcaption, h1, h2, h3, h4, h5, h6, article, section, div";
       var containerId = "\(RichTextConstants.richTextContainerID)";
+
+      function normalizeText(text) {
+        return (text || "").replace(/\\s+/g, " ").trim();
+      }
 
       function pointFromEvent(event) {
         if (!event) return null;
@@ -202,6 +207,13 @@ public struct RichTextConstants {
         };
       }
 
+      function contextTextForNode(node) {
+        var element = node && node.nodeType === Node.ELEMENT_NODE ? node : node && node.parentElement;
+        var block = element && element.closest ? element.closest(blockSelector) : null;
+        var contextText = normalizeText(block ? (block.innerText || block.textContent || "") : "");
+        return contextText || null;
+      }
+
       function wordPayloadAtPoint(x, y) {
         var range = caretRangeAtPoint(x, y);
         if (!range) return null;
@@ -224,6 +236,7 @@ public struct RichTextConstants {
 
             return {
               word: match[0],
+              contextText: contextTextForNode(node),
               anchor: normalizedAnchorForRect(wordRange.getBoundingClientRect())
             };
           }
@@ -265,6 +278,7 @@ public struct RichTextConstants {
         if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.wordClick) {
           window.webkit.messageHandlers.wordClick.postMessage({
             word: payload.word,
+            contextText: payload.contextText,
             anchorX: payload.anchor ? payload.anchor.x : null,
             anchorY: payload.anchor ? payload.anchor.y : null,
             anchorWidth: payload.anchor ? payload.anchor.width : null,

@@ -405,6 +405,8 @@ struct RichTextAllTests {
       #expect(RichTextConstants.wordClickScript.contains("rangeCount === 0"))
       #expect(RichTextConstants.wordClickScript.contains("distanceFromStart"))
       #expect(RichTextConstants.wordClickScript.contains("anchorWidth"))
+      #expect(RichTextConstants.wordClickScript.contains("contextTextForNode"))
+      #expect(RichTextConstants.wordClickScript.contains("contextText: payload.contextText"))
       #expect(RichTextConstants.textSelectionScript.contains("anchorHeight"))
       #expect(!RichTextConstants.textSelectionScript.isEmpty)
     }
@@ -493,6 +495,61 @@ struct RichTextAllTests {
       )
 
       #expect(anchor == RichTextAttachmentAnchor(x: 0.4, y: 0.6, width: nil, height: 0))
+    }
+  }
+
+  @Suite("Word Click Payload Tests")
+  struct WordClickPayloadTests {
+
+    @Test("Normalization trims word and context text")
+    func trimsWordAndContextText() {
+      let payload = normalizeWordClickPayload(
+        word: "  example  ",
+        contextText: "  Article paragraph with   spacing.  ",
+        anchorX: 0.3,
+        anchorY: 0.45,
+        anchorWidth: 0.08,
+        anchorHeight: 0.04
+      )
+
+      #expect(
+        payload
+          == WordClickPayload(
+            word: "example",
+            contextText: "Article paragraph with spacing.",
+            attachmentAnchor: RichTextAttachmentAnchor(
+              x: 0.3,
+              y: 0.45,
+              width: 0.08,
+              height: 0.04
+            )
+          ))
+    }
+
+    @Test("Normalization drops blank context text")
+    func dropsBlankContextText() {
+      let payload = normalizeWordClickPayload(
+        word: "example",
+        contextText: "   "
+      )
+
+      #expect(
+        payload
+          == WordClickPayload(
+            word: "example",
+            contextText: nil,
+            attachmentAnchor: nil
+          ))
+    }
+
+    @Test("Normalization ignores blank words")
+    func ignoresBlankWords() {
+      let payload = normalizeWordClickPayload(
+        word: "   ",
+        contextText: "Article paragraph"
+      )
+
+      #expect(payload == nil)
     }
   }
 

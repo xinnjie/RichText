@@ -214,6 +214,21 @@ public struct RichTextConstants {
         return contextText || null;
       }
 
+      function pointHitsClientRects(rects, x, y) {
+        if (!rects) return false;
+
+        for (var index = 0; index < rects.length; index += 1) {
+          var rect = rects[index];
+          if (!rect || rect.width <= 0 || rect.height <= 0) continue;
+
+          if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+            return true;
+          }
+        }
+
+        return false;
+      }
+
       function wordPayloadAtPoint(x, y) {
         var range = caretRangeAtPoint(x, y);
         if (!range) return null;
@@ -233,6 +248,9 @@ public struct RichTextConstants {
             var wordRange = document.createRange();
             wordRange.setStart(node, start);
             wordRange.setEnd(node, end);
+            if (!pointHitsClientRects(wordRange.getClientRects(), x, y)) {
+              return null;
+            }
 
             return {
               word: match[0],
@@ -243,6 +261,9 @@ public struct RichTextConstants {
         }
         return null;
       }
+
+      window.__richTextTestHooks = window.__richTextTestHooks || {};
+      window.__richTextTestHooks.wordPayloadAtPoint = wordPayloadAtPoint;
 
       document.addEventListener("mousedown", rememberPointerStart, true);
       document.addEventListener("touchstart", rememberPointerStart, true);

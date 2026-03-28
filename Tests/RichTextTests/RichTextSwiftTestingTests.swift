@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import Testing
 import WebKit
@@ -7,6 +8,220 @@ import WebKit
 private final class TestSchemeHandler: NSObject, WKURLSchemeHandler {
   func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {}
   func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {}
+}
+
+@MainActor
+private final class TestNavigationDelegate: NSObject, WKNavigationDelegate {
+  private var continuation: CheckedContinuation<Void, Error>?
+
+  func waitForLoad() async throws {
+    try await withCheckedThrowingContinuation { continuation in
+      self.continuation = continuation
+    }
+  }
+
+  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    _ = webView
+    _ = navigation
+    continuation?.resume(returning: ())
+    continuation = nil
+  }
+
+  func webView(
+    _ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error
+  ) {
+    _ = webView
+    _ = navigation
+    continuation?.resume(throwing: error)
+    continuation = nil
+  }
+
+  func webView(
+    _ webView: WKWebView,
+    didFailProvisionalNavigation navigation: WKNavigation!,
+    withError error: Error
+  ) {
+    _ = webView
+    _ = navigation
+    continuation?.resume(throwing: error)
+    continuation = nil
+  }
+}
+
+@MainActor
+private final class TestWordClickMessageHandler: NSObject, WKScriptMessageHandler {
+  private(set) var messages: [[String: Any]] = []
+
+  func reset() {
+    messages.removeAll()
+  }
+
+  func userContentController(
+    _ userContentController: WKUserContentController, didReceive message: WKScriptMessage
+  ) {
+    _ = userContentController
+
+    if let body = message.body as? [String: Any] {
+      messages.append(body)
+    } else if let word = message.body as? String {
+      messages.append(["word": word])
+    }
+  }
+}
+
+private struct TestPoint: Decodable {
+  let x: Double
+  let y: Double
+}
+
+private struct TestWordPayload: Decodable, Equatable {
+  let word: String
+  let contextText: String?
+}
+
+private enum TestHarnessError: Error {
+  case missingJavaScriptResult
+}
+
+@MainActor
+private func makeWordClickTestHTML(bodyHTML: String, extraCSS: String = "") -> String {
+  """
+  <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body {
+          margin: 0;
+          padding: 0;
+          font: 24px -apple-system;
+        }
+        #\(RichTextConstants.richTextContainerID) {
+          width: 360px;
+        }
+        p, h1 {
+          margin: 0;
+        }
+        \(extraCSS)
+      </style>
+    </head>
+    <body>
+      <div id="\(RichTextConstants.richTextContainerID)">\(bodyHTML)</div>
+    </body>
+  </html>
+  """
+}
+
+@MainActor
+private func evaluateJavaScript(_ script: String, in webView: WKWebView) async throws -> Any? {
+  try await withCheckedThrowingContinuation { continuation in
+    webView.evaluateJavaScript(script) { result, error in
+      if let error {
+        continuation.resume(throwing: error)
+        return
+      }
+
+      continuation.resume(returning: result)
+    }
+  }
+}
+
+@MainActor
+private func decodeJSONObject<T: Decodable>(_ type: T.Type, from json: String) throws -> T {
+  try JSONDecoder().decode(type, from: Data(json.utf8))
+}
+
+@MainActor
+private func makeWordClickTestWebView(
+  bodyHTML: String,
+  extraCSS: String = ""
+) async throws -> (WKWebView, TestWordClickMessageHandler) {
+  let configuration = WKWebViewConfiguration()
+  let contentController = WKUserContentController()
+  contentController.addUserScript(
+    WKUserScript(
+      source: RichTextConstants.wordClickScript,
+      injectionTime: .atDocumentEnd,
+      forMainFrameOnly: true
+    )
+  )
+
+  let messageHandler = TestWordClickMessageHandler()
+  contentController.add(messageHandler, name: RichTextConstants.wordClickHandler)
+  configuration.userContentController = contentController
+
+  let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 360, height: 640), configuration: configuration)
+  let navigationDelegate = TestNavigationDelegate()
+  webView.navigationDelegate = navigationDelegate
+
+  async let loadFinished: Void = navigationDelegate.waitForLoad()
+  webView.loadHTMLString(makeWordClickTestHTML(bodyHTML: bodyHTML, extraCSS: extraCSS), baseURL: nil)
+  try await loadFinished
+  try await Task.sleep(nanoseconds: 100_000_000)
+
+  return (webView, messageHandler)
+}
+
+@MainActor
+private func pointFromJavaScript(_ script: String, in webView: WKWebView) async throws -> TestPoint {
+  let jsonScript = """
+  (function() {
+    var point = (\(script));
+    return point ? JSON.stringify(point) : null;
+  })();
+  """
+
+  let rawResult = try await evaluateJavaScript(jsonScript, in: webView)
+  guard let json = rawResult as? String else {
+    throw TestHarnessError.missingJavaScriptResult
+  }
+  return try decodeJSONObject(TestPoint.self, from: json)
+}
+
+@MainActor
+private func wordPayload(at point: TestPoint, in webView: WKWebView) async throws -> TestWordPayload? {
+  let rawResult = try await evaluateJavaScript(
+    """
+    (function() {
+      var payload = window.__richTextTestHooks.wordPayloadAtPoint(\(point.x), \(point.y));
+      return payload ? JSON.stringify(payload) : null;
+    })();
+    """,
+    in: webView
+  )
+
+  guard let json = rawResult as? String else {
+    return nil
+  }
+
+  return try decodeJSONObject(TestWordPayload.self, from: json)
+}
+
+@MainActor
+private func simulateTap(at point: TestPoint, in webView: WKWebView) async throws {
+  _ = try await evaluateJavaScript(
+    """
+    (function() {
+      var target = document.elementFromPoint(\(point.x), \(point.y));
+      if (!target) {
+        return false;
+      }
+
+      target.dispatchEvent(new MouseEvent("mousedown", {
+        bubbles: true,
+        clientX: \(point.x),
+        clientY: \(point.y)
+      }));
+      target.dispatchEvent(new MouseEvent("click", {
+        bubbles: true,
+        clientX: \(point.x),
+        clientY: \(point.y)
+      }));
+      return true;
+    })();
+    """,
+    in: webView
+  )
+  try await Task.sleep(nanoseconds: 50_000_000)
 }
 
 // MARK: - Swift Testing Tests for RichText Library v3.0.0
@@ -406,9 +621,176 @@ struct RichTextAllTests {
       #expect(RichTextConstants.wordClickScript.contains("distanceFromStart"))
       #expect(RichTextConstants.wordClickScript.contains("anchorWidth"))
       #expect(RichTextConstants.wordClickScript.contains("contextTextForNode"))
+      #expect(RichTextConstants.wordClickScript.contains("pointHitsClientRects"))
+      #expect(RichTextConstants.wordClickScript.contains("wordRange.getClientRects()"))
+      #expect(RichTextConstants.wordClickScript.contains("__richTextTestHooks"))
       #expect(RichTextConstants.wordClickScript.contains("contextText: payload.contextText"))
       #expect(RichTextConstants.textSelectionScript.contains("anchorHeight"))
       #expect(!RichTextConstants.textSelectionScript.isEmpty)
+    }
+  }
+
+  @MainActor
+  @Suite("Word Click Hit Testing Tests")
+  struct WordClickHitTestingTests {
+
+    @Test("Returns tapped word when point is inside glyph rect")
+    func hitsWordGlyph() async throws {
+      let (webView, _) = try await makeWordClickTestWebView(
+        bodyHTML: #"<p id="body">Use the new VAD model today.</p>"#
+      )
+
+      let point = try await pointFromJavaScript(
+        """
+        (function() {
+          var node = document.querySelector("#body").firstChild;
+          var range = document.createRange();
+          range.setStart(node, 0);
+          range.setEnd(node, 3);
+          var rect = range.getClientRects()[0];
+          return {
+            x: (rect.left + rect.right) / 2,
+            y: (rect.top + rect.bottom) / 2
+          };
+        })()
+        """,
+        in: webView
+      )
+
+      let payload = try await wordPayload(at: point, in: webView)
+
+      #expect(payload == TestWordPayload(word: "Use", contextText: "Use the new VAD model today."))
+    }
+
+    @Test("Ignores line end whitespace after the last word")
+    func ignoresLineEndWhitespace() async throws {
+      let (webView, _) = try await makeWordClickTestWebView(
+        bodyHTML: #"<p id="body">Use the new VAD model today.</p>"#
+      )
+
+      let point = try await pointFromJavaScript(
+        """
+        (function() {
+          var paragraph = document.querySelector("#body");
+          var node = paragraph.firstChild;
+          var text = node.textContent || "";
+          var word = "today";
+          var start = text.indexOf(word);
+          var range = document.createRange();
+          range.setStart(node, start);
+          range.setEnd(node, start + word.length);
+          var rect = range.getClientRects()[0];
+          var paragraphRect = paragraph.getBoundingClientRect();
+          return {
+            x: Math.min(rect.right + 24, paragraphRect.right - 4),
+            y: (rect.top + rect.bottom) / 2
+          };
+        })()
+        """,
+        in: webView
+      )
+
+      let payload = try await wordPayload(at: point, in: webView)
+
+      #expect(payload == nil)
+    }
+
+    @Test("Ignores title leading whitespace before the first word")
+    func ignoresTitleLeadingWhitespace() async throws {
+      let (webView, _) = try await makeWordClickTestWebView(
+        bodyHTML: #"<h1 id="title">Speeding</h1>"#,
+        extraCSS: "#title { width: 280px; text-indent: 64px; }"
+      )
+
+      let point = try await pointFromJavaScript(
+        """
+        (function() {
+          var title = document.querySelector("#title");
+          var node = title.firstChild;
+          var range = document.createRange();
+          range.setStart(node, 0);
+          range.setEnd(node, node.textContent.length);
+          var rect = range.getClientRects()[0];
+          var titleRect = title.getBoundingClientRect();
+          return {
+            x: Math.max(titleRect.left + 4, rect.left - 20),
+            y: (rect.top + rect.bottom) / 2
+          };
+        })()
+        """,
+        in: webView
+      )
+
+      let payload = try await wordPayload(at: point, in: webView)
+
+      #expect(payload == nil)
+    }
+
+    @Test("Clicking link text does not emit word tap message")
+    func clickingLinkSkipsWordClickHandler() async throws {
+      let (webView, messageHandler) = try await makeWordClickTestWebView(
+        bodyHTML: ##"<p>Open <a id="link" href="#">example</a> docs</p>"##
+      )
+
+      let point = try await pointFromJavaScript(
+        """
+        (function() {
+          var node = document.querySelector("#link").firstChild;
+          var range = document.createRange();
+          range.setStart(node, 0);
+          range.setEnd(node, node.textContent.length);
+          var rect = range.getClientRects()[0];
+          return {
+            x: (rect.left + rect.right) / 2,
+            y: (rect.top + rect.bottom) / 2
+          };
+        })()
+        """,
+        in: webView
+      )
+
+      messageHandler.reset()
+      try await simulateTap(at: point, in: webView)
+
+      #expect(messageHandler.messages.isEmpty)
+    }
+
+    @Test("Wrapped word still hits when tapping later line rect")
+    func wrappedWordStillHits() async throws {
+      let (webView, _) = try await makeWordClickTestWebView(
+        bodyHTML: #"<p id="body">supercalifragilisticexpialidocious</p>"#,
+        extraCSS: "#body { width: 92px; line-height: 1.2; overflow-wrap: anywhere; }"
+      )
+
+      let point = try await pointFromJavaScript(
+        """
+        (function() {
+          var node = document.querySelector("#body").firstChild;
+          var range = document.createRange();
+          range.setStart(node, 0);
+          range.setEnd(node, node.textContent.length);
+          var rects = range.getClientRects();
+          if (!rects || rects.length < 2) {
+            return null;
+          }
+          var rect = rects[1];
+          return {
+            x: (rect.left + rect.right) / 2,
+            y: (rect.top + rect.bottom) / 2
+          };
+        })()
+        """,
+        in: webView
+      )
+
+      let payload = try await wordPayload(at: point, in: webView)
+
+      #expect(
+        payload
+          == TestWordPayload(
+            word: "supercalifragilisticexpialidocious",
+            contextText: "supercalifragilisticexpialidocious"
+          ))
     }
   }
 
